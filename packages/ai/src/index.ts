@@ -1,0 +1,11 @@
+export { AgentHost, type AgentHostOptions, type DecisionOutcome, type DecisionRecord, type GoalRecord } from "./agentHost";
+export { DIFFICULTY_PROFILES, type AgentContext, type DifficultyProfile } from "./context";
+export { ARCHETYPE_IDS, ARCHETYPES, assignPersonalities, jitterPersonality, type ArchetypeId, type AssignedPersonality, type Personality } from "./personality";
+export { AgentMemory, type AgentMemoryOptions, type MemoryUpdate } from "./memory/agentMemory";
+export type * from "./memory/types";
+export { parseUtterance, type TextSignal } from "./memory/textSignals";
+export { executeGoal, type ActiveGoal, type ExecContext, type ExecStep } from "./executor";
+export { HeuristicController } from "./controllers/heuristic";
+export { RandomController } from "./controllers/random";
+export { fallbackDecision } from "./controllers/fallback";
+export { randomAnswer, solveLikeABot } from "./controllers/taskSolving";

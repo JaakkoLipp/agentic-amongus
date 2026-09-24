@@ -1,0 +1,18 @@
+{
+  "name": "@deduction/ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deduction/maps": "workspace:*",
+    "@deduction/shared": "workspace:*",
+    "@deduction/tasks": "workspace:*",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@deduction/engine": "workspace:*"
+  }
+}

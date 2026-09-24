@@ -1,0 +1,14 @@
+{
+  "name": "@deduction/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deduction/maps": "workspace:*",
+    "@deduction/shared": "workspace:*",
+    "@deduction/tasks": "workspace:*"
+  }
+}

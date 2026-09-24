@@ -1,0 +1,25 @@
+{
+  "name": "agentic-deduction",
+  "private": true,
+  "type": "module",
+  "description": "Browser social-deduction game where one human plays against autonomous LLM agents.",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "simulate": "tsx packages/runtime/src/cli/simulate.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check": "pnpm typecheck && pnpm test",
+    "map:ascii": "tsx packages/maps/src/cli/ascii.ts",
+    "inspect-match": "tsx packages/runtime/src/cli/inspect.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}
