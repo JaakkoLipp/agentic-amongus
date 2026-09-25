@@ -13,14 +13,14 @@ function sourceFiles(dir: string): string[] {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
     if (statSync(full).isDirectory()) out.push(...sourceFiles(full));
-    else if (full.endsWith(".ts")) out.push(full);
+    else if (full.endsWith(".ts") || full.endsWith(".tsx")) out.push(full);
   }
   return out;
 }
 
-function importsOf(pkg: string): { file: string; spec: string }[] {
+function importsOf(pkg: string, base = "packages"): { file: string; spec: string }[] {
   const out: { file: string; spec: string }[] = [];
-  for (const file of sourceFiles(join(root, "packages", pkg, "src"))) {
+  for (const file of sourceFiles(join(root, base, pkg, "src"))) {
     const text = readFileSync(file, "utf8");
     for (const m of text.matchAll(/from\s+"([^"]+)"/g)) out.push({ file: relative(root, file), spec: m[1]! });
   }
@@ -52,4 +52,22 @@ describe("package boundaries", () => {
   it("AI code cannot reach the authoritative GameState", () => {
     expect(importsOf("ai").filter(({ spec }) => spec === "@deduction/engine")).toEqual([]);
   });
+});
+
+const appAllowed: Record<string, readonly string[]> = {
+  // The browser only knows the protocol types and public map geometry: never rules, state, agents or task data.
+  client: ["@deduction/shared", "@deduction/maps", "react", "react-dom/client", "pixi.js"],
+  // The server hosts matches through the runtime only.
+  server: ["@deduction/shared", "@deduction/maps", "@deduction/runtime", "fastify", "@fastify/websocket", "@fastify/static"],
+};
+
+describe("app boundaries", () => {
+  for (const [app, deps] of Object.entries(appAllowed)) {
+    it(`apps/${app} only imports ${deps.join(", ")} (plus node: builtins and relative files)`, () => {
+      const imports = importsOf(app, "apps");
+      expect(imports.length).toBeGreaterThan(0);
+      const bad = imports.filter(({ spec }) => !spec.startsWith(".") && !spec.startsWith("node:") && !deps.includes(spec));
+      expect(bad).toEqual([]);
+    });
+  }
 });

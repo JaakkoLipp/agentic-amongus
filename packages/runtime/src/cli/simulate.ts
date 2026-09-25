@@ -67,7 +67,9 @@ if (workers === 1) {
     chunks.map(
       (chunk) =>
         new Promise<void>((resolveChunk, rejectChunk) => {
-          const worker = new Worker(new URL("./simWorker.ts", import.meta.url), { workerData: { seeds: chunk, config } });
+          const worker = new Worker(new URL("./workerBoot.mjs", import.meta.url), {
+            workerData: { entry: new URL("./simWorker.ts", import.meta.url).href, seeds: chunk, config },
+          });
           let received = 0;
           worker.on("message", (r: SimulatedMatch) => {
             received++;

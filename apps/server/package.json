@@ -2,5 +2,24 @@
   "name": "@deduction/server",
   "version": "0.1.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts"
+  },
+  "dependencies": {
+    "@deduction/maps": "workspace:*",
+    "@deduction/runtime": "workspace:*",
+    "@deduction/shared": "workspace:*",
+    "@fastify/static": "^10.1.4",
+    "@fastify/websocket": "^11.3.1",
+    "fastify": "^5.12.5"
+  },
+  "devDependencies": {
+    "@deduction/tasks": "workspace:*",
+    "@types/ws": "^8.18.1"
+  }
 }

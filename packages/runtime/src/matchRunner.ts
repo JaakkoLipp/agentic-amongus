@@ -2,11 +2,14 @@ import {
   deriveRng,
   resolveGameSettings,
   secondsToTicks,
+  TICK_MS,
+  type ActionResult,
   type AgentDecision,
   type AiDifficulty,
   type ControllerKind,
   type DecisionRequest,
   type GameSettingsInput,
+  type JsonObject,
   type PlayerAction,
   type PlayerController,
   type PlayerId,
@@ -53,6 +56,17 @@ export interface MatchRunnerOptions {
   readonly agentStepTicks?: number;
 }
 
+export interface RealtimeOptions {
+  /** Wall-clock milliseconds per tick (default `TICK_MS`, i.e. 30 Hz). Smaller values run the game faster. */
+  readonly tickMs?: number;
+  /** Called after every tick. */
+  readonly onTick?: () => void;
+  /** A tick or a decision threw (a bug); the loop has stopped. Without a handler the error is rethrown. */
+  readonly onError?: (err: Error) => void;
+  /** Ticks run back to back at most when the loop fell behind (default 5). */
+  readonly maxCatchUpTicks?: number;
+}
+
 export interface MatchSummary {
   readonly matchId: string;
   readonly seed: number;
@@ -85,8 +99,9 @@ export class MatchRunner {
   private readonly opts: MatchRunnerOptions;
   private readonly stepEvery: number;
   private readonly hostOrder: AgentHost[];
-  private realtimeTimer: ReturnType<typeof setInterval> | null = null;
+  private realtimeTimer: ReturnType<typeof setTimeout> | null = null;
   private asyncError: Error | null = null;
+  private readonly lastHumanDir = new Map<PlayerId, { x: number; y: number }>();
 
   constructor(opts: MatchRunnerOptions = {}) {
     this.opts = opts;
@@ -130,14 +145,28 @@ export class MatchRunner {
     return this.match.isOver;
   }
 
-  /** Human input path (server): direct movement. */
+  /** Human input path (server): direct movement. A zero direction stops. */
   setHumanMove(playerId: PlayerId, dir: { x: number; y: number }): void {
-    if (this.controllers[playerId] === "human") this.match.setMoveIntent(playerId, { mode: "direction", dir });
+    if (this.controllers[playerId] !== "human") return;
+    this.match.setMoveIntent(playerId, dir.x === 0 && dir.y === 0 ? { mode: "stop" } : { mode: "direction", dir });
+    // Clients repeat their input (meetings reset every intent); the replay only needs the changes.
+    const last = this.lastHumanDir.get(playerId);
+    if (last && last.x === dir.x && last.y === dir.y) return;
+    this.lastHumanDir.set(playerId, { x: dir.x, y: dir.y });
+    this.replay?.recordAgent({ type: "HUMAN_INPUT", tick: this.match.tick, playerId, data: { move: { x: dir.x, y: dir.y } } });
   }
 
   /** Human input path (server): any discrete action, validated by the engine like everyone else's. */
-  submitHumanAction(playerId: PlayerId, action: PlayerAction) {
-    return this.match.submitAction(playerId, action);
+  submitHumanAction(playerId: PlayerId, action: PlayerAction): ActionResult {
+    if (this.controllers[playerId] !== "human") return { ok: false, reason: "invalid_target" };
+    const result = this.match.submitAction(playerId, action);
+    this.replay?.recordAgent({
+      type: "HUMAN_INPUT",
+      tick: this.match.tick,
+      playerId,
+      data: { action: JSON.parse(JSON.stringify(action)) as JsonObject, ok: result.ok },
+    });
+    return result;
   }
 
   /** Synchronous part of one simulation tick: agents perceive/act, the director hands out turns, the engine steps. */
@@ -182,18 +211,49 @@ export class MatchRunner {
     return this.summary();
   }
 
-  /** Real-time loop for interactive play. The tick never awaits inference. */
-  startRealtime(tickMs: number, onTick?: () => void): void {
+  get isRunningRealtime(): boolean {
+    return this.realtimeTimer !== null;
+  }
+
+  /**
+   * Real-time loop for interactive play: a fixed-timestep scheduler that runs ticks against the wall clock, catching
+   * up after short stalls (at most `maxCatchUpTicks` at once) instead of drifting like a plain interval would.
+   * The tick never awaits inference. Stops by itself when the match ends or a decision fails to apply.
+   */
+  startRealtime(opts: RealtimeOptions = {}): void {
     if (this.realtimeTimer) return;
-    this.realtimeTimer = setInterval(() => {
-      this.tick();
-      onTick?.();
-      if (this.match.isOver) this.stopRealtime();
-    }, tickMs);
+    const tickMs = opts.tickMs ?? TICK_MS;
+    const maxCatchUp = Math.max(1, opts.maxCatchUpTicks ?? 5);
+    let due = performance.now();
+    const fail = (err: unknown) => {
+      const error = err instanceof Error ? err : new Error(String(err));
+      if (opts.onError) opts.onError(error);
+      else throw error;
+    };
+    const loop = () => {
+      this.realtimeTimer = null;
+      const now = performance.now();
+      for (let n = 0; now >= due && n < maxCatchUp; n++) {
+        try {
+          this.tick();
+          due += tickMs;
+          opts.onTick?.();
+        } catch (err) {
+          // A bug in one match must not escape the timer (and take a whole server process down with it).
+          return fail(err);
+        }
+        if (this.asyncError) return fail(this.asyncError);
+        if (this.match.isOver) return;
+      }
+      // Too far behind (debugger pause, overloaded host): drop the backlog rather than fast-forwarding the game.
+      if (now >= due) due = now + tickMs;
+      this.realtimeTimer = setTimeout(loop, Math.max(0, due - performance.now()));
+    };
+    this.realtimeTimer = setTimeout(loop, 0);
   }
 
   stopRealtime(): void {
-    if (this.realtimeTimer) clearInterval(this.realtimeTimer);
+    if (this.realtimeTimer) clearTimeout(this.realtimeTimer);
     this.realtimeTimer = null;
   }
 

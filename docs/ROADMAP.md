@@ -14,14 +14,28 @@ Players, roles, rooms and room graph, movement with collision, pathfinding, task
 
 Also delivered early, because M1 bots consume observations: real geometric vision, hearing, the observation builder, perceived events, a first version of memory, beliefs, and personalities, the meeting director, and async decision scheduling with stale-decision rejection and fallbacks.
 
-## Milestone 2: Browser client
+## Milestone 2: Browser client ✅
 
-Fastify server with the WebSocket protocol (`PROTOCOL.md`); `MatchRunner` in realtime mode. React + Vite client with a PixiJS renderer: camera follow, room geometry, player sprites and labels, a HUD with context actions from `observation.legal`, and WASD input. One seat set to `human`, the rest heuristic.
-**Acceptance:** a human can play complete matches against heuristic bots.
+Fastify server with the WebSocket protocol (`PROTOCOL.md`); `MatchRunner` in realtime mode with a fixed-timestep loop. React + Vite client with a PixiJS renderer: camera follow, room geometry, player sprites and labels, a HUD with context actions from `observation.legal`, and WASD input. One seat set to `human`, the rest heuristic.
+
+**Acceptance:** a human can play complete matches against heuristic bots. This is covered at three levels:
+
+- `apps/server/test/session.test.ts`: a protocol-only scripted human plays full matches on crew and infiltrator seats.
+- `apps/server/test/server.test.ts`: a real WebSocket runs a match to `match_ended`.
+- `pnpm e2e`: headless Chromium plays through the real UI (keyboard movement, task panel, meeting panel, kill, vent and sabotage hotkeys) to the end screen.
+
+Delivered early, because complete matches needed them: a functional generic task UI (every `AnswerFormat`), the meeting UI (transcript, chat, timers, votes, results), vent and sabotage menus, body rendering, a line-of-sight lighting overlay (it shrinks with lights sabotage), a minimap, an event log and toasts.
 
 ## Milestone 3: Complete normal gameplay
 
-Task UIs rendered from `TaskView` + `AnswerFormat`, kill and body rendering, meeting UI (chat, timers, votes, results), vent UI, sabotage UI and effects, lighting (vision radius and lights sabotage), animations, sound placeholders.
+What remains from the original scope, now that the functional UIs exist (M2):
+
+- per-kind task visuals (e.g. a drawn beacon, drone grid, crate stack), instead of the generic content renderer;
+- kill, vent and report animations, and an ejection screen;
+- sabotage effects on the map (flashing red, dimmed lights);
+- sound placeholders;
+- keybinding help overlay, settings persistence beyond the lobby, and touch/mobile controls.
+
 **Acceptance:** the game feels playable without any AI inference.
 
 ## Milestone 4: Partial observability and memory (deepening)
@@ -68,3 +82,5 @@ From the M1 run of 1000 heuristic matches:
 - **Critical sabotage wins about 18%** of matches. The crew's response to the reactor, which needs two players holding at once, is slow. Tune the repair timer or crew coordination once humans are in the loop.
 - Heuristic infiltrators never use proximity speech; LLM agents will.
 - Map v1 has one layout. Door-closing sabotage is not modelled yet; doorways are derived and ready for it.
+- The client has no client-side prediction with input acknowledgement: the own figure is dead-reckoned from the last snapshot. On localhost the added latency is about one snapshot (≤ 67 ms); over a real network, input sequence acks plus reconciliation would feel better.
+- Spectator matches (`humanPlayer: false`) are rejected by the server for now.

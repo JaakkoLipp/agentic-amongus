@@ -3,6 +3,10 @@
   "include": [
     "packages/*/src/**/*.ts",
     "packages/*/test/**/*.ts",
+    "apps/server/src/**/*.ts",
+    "apps/server/test/**/*.ts",
+    "apps/client/vite.config.ts",
+    "apps/client/e2e/**/*.ts",
     "tests/**/*.ts",
     "vitest.config.ts"
   ]

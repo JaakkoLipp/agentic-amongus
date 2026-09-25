@@ -97,6 +97,20 @@ export const LobbySettingsSchema = z.object({
   game: GameSettingsSchema.default(GameSettingsSchema.parse({})),
   ai: AiSettingsSchema.default(AiSettingsSchema.parse({})),
   humanPlayer: z.boolean().default(true),
+  /** Seat (player id / colour) the human plays. Must be one of the first `playerCount` identities. */
+  humanSeat: z.string().min(1).max(64).default("red"),
   debug: z.boolean().default(false),
 });
 export type LobbySettings = z.infer<typeof LobbySettingsSchema>;
+export type LobbySettingsInput = z.input<typeof LobbySettingsSchema>;
+
+/**
+ * Rules a client may know during a match. The seed is withheld until the match ends: roles, task assignment and
+ * task instances all derive from it, so knowing it would reveal the infiltrators.
+ */
+export type PublicGameSettings = Omit<GameSettings, "seed">;
+
+export function publicGameSettings(settings: GameSettings): PublicGameSettings {
+  const { seed: _seed, ...rest } = settings;
+  return rest;
+}

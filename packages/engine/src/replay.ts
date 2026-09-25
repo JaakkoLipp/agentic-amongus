@@ -15,9 +15,12 @@ export interface ReplayHeader {
   readonly tasks: readonly { readonly id: string; readonly ownerId: PlayerId; readonly stationId: string; readonly kind: TaskKind; readonly difficulty: number; readonly data: JsonObject }[];
 }
 
-/** Agent-side records (decisions, reason summaries) appended by the runtime; the engine never produces these. */
+/**
+ * Controller-side records appended by the runtime; the engine never produces these. Agent decisions carry reason
+ * summaries; `HUMAN_INPUT` records a human seat's movement changes and actions so human matches can be re-examined.
+ */
 export interface ReplayAgentRecord {
-  readonly type: "AGENT_DECISION" | "AGENT_FALLBACK" | "AGENT_STALE" | "AGENT_NOTE";
+  readonly type: "AGENT_DECISION" | "AGENT_FALLBACK" | "AGENT_STALE" | "AGENT_NOTE" | "HUMAN_INPUT";
   readonly tick: Tick;
   readonly playerId: PlayerId;
   readonly data: JsonObject;

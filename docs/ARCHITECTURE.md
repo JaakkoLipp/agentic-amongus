@@ -10,8 +10,8 @@
 ## Packages
 
 ```text
-apps/client   (M2) React + Vite + PixiJS; renders observations, sends inputs
-apps/server   (M2) Fastify + WebSocket; hosts MatchRunner in realtime mode
+apps/client   React + Vite + PixiJS; renders one seat's observations, sends inputs (knows shared + maps only)
+apps/server   Fastify + WebSocket; one GameSession (realtime MatchRunner, human seat) per connection
 
 packages/shared   ids, math, seeded Rng, settings (Zod), actions, events, observation, goals, decisions,
                   PlayerController interface, protocol
@@ -23,7 +23,7 @@ packages/ai       AgentHost (scheduling + staleness), goal executors, memory/bel
 packages/runtime  MatchRunner (lockstep/realtime), MeetingDirector, metrics, simulate + inspect CLIs
 ```
 
-Allowed dependencies (enforced): `shared ← maps ← engine`, `shared ← tasks ← engine`, `shared/maps/tasks ← ai`, `engine + ai ← runtime`. **`ai` does not depend on `engine`**, so agent code cannot import or read `GameState`.
+Allowed dependencies (enforced): `shared ← maps ← engine`, `shared ← tasks ← engine`, `shared/maps/tasks ← ai`, `engine + ai ← runtime`, `runtime ← apps/server`, and `shared + maps ← apps/client`. **`ai` does not depend on `engine`**, so agent code cannot import or read `GameState`. The **client never imports engine, runtime, ai or tasks**: it cannot simulate or peek at anything the server did not send.
 
 Packages export their TypeScript source directly (`"exports": "./src/index.ts"`), so there is no build step. `tsx` runs the CLIs, Vitest runs the tests, and Vite will bundle the client.
 
@@ -90,9 +90,31 @@ Never contains: other players' roles (unless revealed), unseen positions, unwitn
 There are two modes:
 
 - **lockstep** (headless simulation, tests): pending decisions are awaited between ticks, which is deterministic.
-- **realtime** (server): decisions land whenever the controller answers. The tick never waits, and late answers are checked against the agent's decision revision and discarded if stale.
+- **realtime** (server): decisions land whenever the controller answers. The tick never waits, and late answers are checked against the agent's decision revision and discarded if stale. `startRealtime()` is a fixed-timestep scheduler (30 Hz against the wall clock, at most 5 catch-up ticks after a stall, then the backlog is dropped). It stops by itself when the match ends or a decision fails to apply.
 
 Humans use the same path. The server maps WebSocket inputs to `setMoveIntent`/`submitAction` on their seat.
+
+## Server (`apps/server`)
+
+`buildServer()` (Fastify) serves `/ws`, `/health`, and the built client (`apps/client/dist`) when present. Each WebSocket connection gets a `GameSession`:
+
+- It validates frames (size, JSON, `ClientMessageSchema`), parses lobby settings (`LobbySettingsSchema`), and picks a secret seed when none was requested.
+- It creates a realtime `MatchRunner` with the human seat and a random match id, and starts the runner's fixed-timestep loop.
+- After every tick it flushes, every 2 ticks, on phase changes and after actions: the seat's perceived events (`events`) and a fresh observation (`snapshot`). At the end it sends `match_ended` with the seed and roles, and optionally writes the JSONL replay (`REPLAY_DIR`).
+
+The session is transport-agnostic (`send` callback plus `receive(raw)`), so tests drive it with a manual clock (`clock: "manual"` puts the runner in lockstep). `apps/server/test/scriptedHuman.ts` plays whole matches through the protocol alone.
+
+## Client (`apps/client`)
+
+- `net/client.ts` (`GameClient`): WebSocket, `hello`, typed message handling, input refresh while a key is held, ping.
+- `state/store.ts` (`ClientStore`): latest observation, a 12-snapshot buffer for interpolation, the event log and toasts, the meeting announcement, and the end summary. React reads it with `useSyncExternalStore`; the renderer reads the buffer every frame.
+- `render/` (PixiJS):
+  - static map layer drawn once;
+  - other players interpolated 110 ms in the past between snapshots, and the own figure dead-reckoned from the last snapshot along the server-reported heading, then smoothed;
+  - bodies, task and repair markers, vent links;
+  - a darkness overlay cut by a line-of-sight polygon (`render/visibility.ts`, the same grid traversal as the engine).
+  - On software GL (no GPU) MSAA and high-DPI rendering are turned off.
+- `hud/`: lobby, top bar, task list, minimap, event log, toasts, proximity chat, action bar (`legal` actions plus hotkeys), task panel (`TaskView` + `AnswerFormat`), meeting panel, end screen.
 
 ## Replay
 
@@ -100,7 +122,7 @@ Humans use the same path. The server maps WebSocket inputs to `setMoveIntent`/`s
 
 - a header with format, seed, map id and version, settings, roles, controllers, and every task instance;
 - every authoritative event;
-- agent decision records.
+- agent decision records, and `HUMAN_INPUT` records (movement changes and actions) for human seats.
 
 Setup is seeded and the engine is deterministic, so re-running the seed with the same decisions reproduces the match. `eventStreamDigest` hashes an event stream to assert this.
 
@@ -111,3 +133,4 @@ Setup is seeded and the engine is deterministic, so re-running the seed with the
 - **`PlayerController.decide(observation, request)`** takes an explicit `DecisionRequest` (roam / task answer / meeting speech / vote). This keeps "speech" and "vote" separate inferences while every controller keeps a single method.
 - **Tile-grid geometry.** Collision, line of sight, and A* run on the same 1-tile grid, with walls at least one tile thick. Points of interest get cached distance fields, so routing to a station costs a gradient descent rather than an A* search.
 - **Role names.** The impostor-equivalent role is called *infiltrator*. The map, rooms, and task names are original.
+- **Protocol handshake.** `welcome` no longer carries the seat: the seat, map and public settings arrive in `match_started`, since a connection can play several matches. The seed stays secret until `match_ended` (see [PROTOCOL.md](PROTOCOL.md)).

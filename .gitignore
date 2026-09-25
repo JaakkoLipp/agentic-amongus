@@ -144,3 +144,6 @@ vite.config.ts.timestamp-*
 
 # Simulation replays
 replays/
+
+# Browser e2e screenshots (pnpm e2e)
+e2e-screens/

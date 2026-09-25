@@ -4,7 +4,7 @@ An original browser social-deduction game: one human against autonomous AI agent
 
 The project is built to feel like a real game first and an AI benchmark second. Every player, human or LLM, has the same rules, the same partial observation, and the same task instances.
 
-> Status: **Milestone 1 complete.** The headless deterministic engine, heuristic and random agents, and batch simulation all work. The browser client (M2) and LLM agents (M5) come next. See [docs/ROADMAP.md](docs/ROADMAP.md).
+> Status: **Milestone 2 complete.** You can play full matches in the browser against heuristic agents, on top of the headless deterministic engine and batch simulation from Milestone 1. LLM agents (M5) come next, after gameplay polish (M3) and memory work (M4). See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Quick start
 
@@ -13,6 +13,22 @@ Requires Node ≥ 22.12 and pnpm 10.
 ```bash
 pnpm install
 ```
+
+Play (builds the client, then serves it and the game on http://127.0.0.1:8787):
+
+```bash
+pnpm start
+```
+
+Develop with hot reload (Vite on http://localhost:5173, game server on :8787):
+
+```bash
+pnpm dev
+```
+
+Controls: `WASD`/arrows move, `E` use (task, repair), `R` report, `M` emergency meeting, `Q` kill, `V` vent, `F` sabotage, `Enter` talk to nearby players, `Tab` map, `Esc` close a task.
+
+Headless:
 
 ```bash
 pnpm simulate --matches 1000
@@ -40,10 +56,17 @@ pnpm inspect-match --seed 42
 pnpm map:ascii
 ```
 
+```bash
+pnpm e2e -- --seed 1   # browser end-to-end run against a running server (see docs/TESTING.md)
+```
+
+Server environment variables: `PORT` (8787), `HOST` (127.0.0.1), `CLIENT_DIR` (apps/client/dist), `REPLAY_DIR` (unset = no replays).
+
 ## Layout
 
 ```text
-apps/client, apps/server   (Milestone 2)
+apps/client       React + Vite + PixiJS browser client (renders one seat's observation)
+apps/server       Fastify + WebSocket game server (one match per connection)
 packages/shared    domain types, settings, protocol, seeded RNG
 packages/maps      Outpost Kappa, tile geometry, line of sight, pathfinding
 packages/tasks     15 cognitive task kinds (generate / view / validate)

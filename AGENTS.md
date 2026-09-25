@@ -22,6 +22,7 @@ Rules:
 ## Project essentials
 
 - pnpm + TypeScript monorepo. Architecture: `docs/ARCHITECTURE.md`. AI design: `docs/AI_ARCHITECTURE.md`. Tests: `docs/TESTING.md`.
-- Commands: `pnpm test`, `pnpm typecheck`, `pnpm simulate --matches 1000`, `pnpm inspect-match --seed N`, `pnpm map:ascii`.
+- Commands: `pnpm test`, `pnpm typecheck`, `pnpm simulate --matches 1000`, `pnpm inspect-match --seed N`, `pnpm map:ascii`. Play: `pnpm start` (build + server on :8787) or `pnpm dev` (hot reload on :5173). Browser e2e: `pnpm e2e -- --seed 1` against a running server (see `docs/TESTING.md`).
+- The client (`apps/client`) may import only `@deduction/shared` and `@deduction/maps`; everything else it knows comes from the server's per-seat messages (`docs/PROTOCOL.md`).
 - The engine owns all game state. AI code must only use `PlayerObservation` and its own memory; `packages/ai` must never import `@deduction/engine` (enforced by `tests/architecture.test.ts`).
 - Work milestone by milestone, following the steps in `docs/ROADMAP.md`. Keep changes small, run tests after each step, and update the docs you touched.
